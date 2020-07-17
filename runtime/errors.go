@@ -136,7 +136,7 @@ func DefaultHTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w
 	if mux.errBodyMuter != nil {
 		body = mux.errBodyMuter(marshaler, s)
 	} else {
-		body = &internal.Error{
+		body = internal.Error{
 			Error:   s.Message(),
 			Message: s.Message(),
 			Code:    int32(s.Code()),
