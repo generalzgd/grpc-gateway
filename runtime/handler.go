@@ -150,9 +150,18 @@ func ForwardResponseMessage(ctx context.Context, mux *ServeMux, marshaler Marsha
 	var buf []byte
 	var err error
 	if rb, ok := resp.(responseBody); ok {
-		buf, err = marshaler.Marshal(rb.XXX_ResponseBody())
+		tmp := rb.XXX_ResponseBody()
+		if mux.respContainMuter != nil {
+			tmp = mux.respContainMuter(tmp)
+		}
+		buf, err = marshaler.Marshal(tmp)
 	} else {
-		buf, err = marshaler.Marshal(resp)
+		var tmp interface{}
+		tmp = resp
+		if mux.respContainMuter != nil {
+			tmp = mux.respContainMuter(tmp)
+		}
+		buf, err = marshaler.Marshal(tmp)
 	}
 	if err != nil {
 		grpclog.Infof("Marshal error: %v", err)
