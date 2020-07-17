@@ -152,14 +152,14 @@ func ForwardResponseMessage(ctx context.Context, mux *ServeMux, marshaler Marsha
 	if rb, ok := resp.(responseBody); ok {
 		tmp := rb.XXX_ResponseBody()
 		if mux.respContainMuter != nil {
-			tmp = mux.respContainMuter(tmp)
+			tmp = mux.respContainMuter(marshaler,tmp)
 		}
 		buf, err = marshaler.Marshal(tmp)
 	} else {
 		var tmp interface{}
 		tmp = resp
 		if mux.respContainMuter != nil {
-			tmp = mux.respContainMuter(tmp)
+			tmp = mux.respContainMuter(marshaler,tmp)
 		}
 		buf, err = marshaler.Marshal(tmp)
 	}

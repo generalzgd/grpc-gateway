@@ -40,13 +40,13 @@ type ServeMux struct {
 	lastMatchWins             bool
 	//
 	httpCodeMuter func(code codes.Code)int
-	respContainMuter func(v interface{}) interface{} // 响应容器封装
+	respContainMuter func(m Marshaler,v interface{}) interface{} // 响应容器封装
 }
 
 // ServeMuxOption is an option that can be given to a ServeMux on construction.
 type ServeMuxOption func(*ServeMux)
 
-func WithResponseBodyContainerOption(containMuter func(v interface{})interface{}) ServeMuxOption {
+func WithResponseBodyContainerOption(containMuter func(m Marshaler,v interface{})interface{}) ServeMuxOption {
 	return func(serveMux *ServeMux) {
 		serveMux.respContainMuter = containMuter
 	}
