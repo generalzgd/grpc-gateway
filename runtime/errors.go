@@ -6,10 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/grpc-ecosystem/grpc-gateway/internal"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
+
+	"github.com/grpc-ecosystem/grpc-gateway/internal"
 )
 
 // HTTPStatusFromCode converts a gRPC error code into the corresponding HTTP response status.
@@ -53,8 +54,12 @@ func HTTPStatusFromCode(code codes.Code) int {
 		return http.StatusInternalServerError
 	}
 
-	grpclog.Infof("Unknown gRPC error code: %v", code)
-	return http.StatusInternalServerError
+	if code < 100 {
+		grpclog.Infof("Unknown gRPC error code: %v", code)
+		return http.StatusInternalServerError
+	}
+	// 其他业务错误码
+	return http.StatusOK
 }
 
 var (
