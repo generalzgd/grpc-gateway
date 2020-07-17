@@ -132,11 +132,16 @@ func DefaultHTTPError(ctx context.Context, mux *ServeMux, marshaler Marshaler, w
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	body := &internal.Error{
-		Error:   s.Message(),
-		Message: s.Message(),
-		Code:    int32(s.Code()),
-		Details: s.Proto().GetDetails(),
+	var body interface{}
+	if mux.errBodyMuter != nil {
+		body = mux.errBodyMuter(marshaler, s)
+	} else {
+		body = &internal.Error{
+			Error:   s.Message(),
+			Message: s.Message(),
+			Code:    int32(s.Code()),
+			Details: s.Proto().GetDetails(),
+		}
 	}
 
 	buf, merr := marshaler.Marshal(body)
