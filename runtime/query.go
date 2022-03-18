@@ -11,8 +11,9 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/grpc-ecosystem/grpc-gateway/utilities"
 	"google.golang.org/grpc/grpclog"
+
+	"github.com/grpc-ecosystem/grpc-gateway/utilities"
 )
 
 var valuesKeyRegexp = regexp.MustCompile("^(.*)\\[(.*)\\]$")
@@ -39,7 +40,9 @@ func (*defaultQueryParser) Parse(msg proto.Message, values url.Values, filter *u
 		match := valuesKeyRegexp.FindStringSubmatch(key)
 		if len(match) == 3 {
 			key = match[1]
-			values = append([]string{match[2]}, values...)
+			if len(match[2])>0{
+				values = append([]string{match[2]}, values...)
+			}
 		}
 		fieldPath := strings.Split(key, ".")
 		if filter.HasCommonPrefix(fieldPath) {
