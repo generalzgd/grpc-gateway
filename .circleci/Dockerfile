@@ -1,11 +1,13 @@
-FROM golang:1.14.6
+FROM golang:1.18.0
 
 # Warm apt cache and install dependencies
 # bzip2 is required by the node_tests (to extract its dependencies).
+# patch is required by bazel tests
 RUN apt-get update && \
     apt-get install -y wget unzip \
     openjdk-11-jre \
-    bzip2
+    bzip2 \
+    patch
 
 # Install swagger-codegen
 ENV SWAGGER_CODEGEN_VERSION=2.4.8
@@ -27,6 +29,10 @@ RUN wget https://github.com/google/protobuf/releases/download/v${PROTOC_VERSION}
 ENV NODE_VERSION=v10.16.3
 ENV NVM_VERSION=v0.35.0
 RUN wget -qO- https://raw.githubusercontent.com/creationix/nvm/${NVM_VERSION}/install.sh | bash
+
+# Install Bazelisk as bazel to manage Bazel
+RUN go get github.com/bazelbuild/bazelisk && \
+    mv $(which bazelisk) /usr/local/bin/bazel
 
 # Clean up
 RUN apt-get autoremove -y && \

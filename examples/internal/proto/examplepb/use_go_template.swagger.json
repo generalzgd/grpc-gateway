@@ -24,7 +24,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -58,7 +58,7 @@
             }
           },
           "default": {
-            "description": "An unexpected error response",
+            "description": "An unexpected error response.",
             "schema": {
               "$ref": "#/definitions/runtimeError"
             }
@@ -89,7 +89,6 @@
         },
         "access": {
           "type": "boolean",
-          "format": "boolean",
           "title": "Whether you have access or not"
         }
       }

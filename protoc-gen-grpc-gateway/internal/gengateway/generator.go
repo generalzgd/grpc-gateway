@@ -43,6 +43,7 @@ func New(reg *descriptor.Registry, useRequestContext bool, registerFuncSuffix, p
 		"context",
 		"io",
 		"net/http",
+		"reflect",
 		"github.com/grpc-ecosystem/grpc-gateway/runtime",
 		"github.com/grpc-ecosystem/grpc-gateway/utilities",
 		"github.com/golang/protobuf/descriptor",
@@ -50,6 +51,7 @@ func New(reg *descriptor.Registry, useRequestContext bool, registerFuncSuffix, p
 		"google.golang.org/grpc",
 		"google.golang.org/grpc/codes",
 		"google.golang.org/grpc/grpclog",
+		"google.golang.org/grpc/metadata",
 		"google.golang.org/grpc/status",
 	} {
 		pkg := descriptor.GoPackage{
@@ -170,6 +172,9 @@ func (g *generator) generate(file *descriptor.File) (string, error) {
 		UseRequestContext:  g.useRequestContext,
 		RegisterFuncSuffix: g.registerFuncSuffix,
 		AllowPatchFeature:  g.allowPatchFeature,
+	}
+	if g.reg != nil {
+		params.OmitPackageDoc = g.reg.GetOmitPackageDoc()
 	}
 	return applyTemplate(params, g.reg)
 }

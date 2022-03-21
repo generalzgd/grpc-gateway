@@ -59,8 +59,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/example/a_bit_of_everything/echo/{value}:
@@ -97,12 +101,16 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         503:
           description: "Returned when the resource is temporarily unavailable."
           schema: {}
           x-number: 100
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
       externalDocs:
@@ -197,7 +205,6 @@ paths:
         in: "query"
         required: false
         type: "boolean"
-        format: "boolean"
         x-exportParamName: "BoolValue"
         x-optionalDataType: "Bool"
       - name: "string_value"
@@ -392,8 +399,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/example/a_bit_of_everything/params/get/{single_nested.name}:
@@ -487,7 +498,6 @@ paths:
         in: "query"
         required: false
         type: "boolean"
-        format: "boolean"
         x-exportParamName: "BoolValue"
         x-optionalDataType: "Bool"
       - name: "string_value"
@@ -687,8 +697,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/example/a_bit_of_everything/params/post/{string_value}:
@@ -768,7 +782,6 @@ paths:
         in: "query"
         required: false
         type: "boolean"
-        format: "boolean"
         x-exportParamName: "BoolValue"
         x-optionalDataType: "Bool"
       - name: "bytes_value"
@@ -969,8 +982,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/example/a_bit_of_everything/query/{uuid}:
@@ -1064,7 +1081,6 @@ paths:
         in: "query"
         required: false
         type: "boolean"
-        format: "boolean"
         x-exportParamName: "BoolValue"
         x-optionalDataType: "Bool"
       - name: "string_value"
@@ -1270,8 +1286,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
       security: []
@@ -1335,7 +1355,6 @@ paths:
         in: "path"
         required: true
         type: "boolean"
-        format: "boolean"
         x-exportParamName: "BoolValue"
       - name: "string_value"
         in: "path"
@@ -1428,8 +1447,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/example/a_bit_of_everything/{single_nested.name}:
@@ -1468,8 +1491,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/example/a_bit_of_everything/{uuid}:
@@ -1501,8 +1528,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
     put:
@@ -1538,8 +1569,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
     delete:
@@ -1569,8 +1604,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
       security:
@@ -1662,7 +1701,6 @@ paths:
         type: "array"
         items:
           type: "boolean"
-          format: "boolean"
         collectionFormat: "csv"
         minItems: 1
         x-exportParamName: "PathRepeatedBoolValue"
@@ -1766,8 +1804,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v1/{parent=publishers/*}/books:
@@ -1817,8 +1859,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/a_bit_of_everything/{abe.uuid}:
@@ -1864,8 +1910,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
     patch:
@@ -1910,8 +1960,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/echo:
@@ -1949,12 +2003,16 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         503:
           description: "Returned when the resource is temporarily unavailable."
           schema: {}
           x-number: 100
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
       externalDocs:
@@ -1994,12 +2052,16 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         503:
           description: "Returned when the resource is temporarily unavailable."
           schema: {}
           x-number: 100
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
       externalDocs:
@@ -2028,8 +2090,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/errorwithdetails:
@@ -2055,8 +2121,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/overwriteresponsecontenttype:
@@ -2085,8 +2155,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/postwithemptybody/{name}:
@@ -2123,8 +2197,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/timeout:
@@ -2150,8 +2228,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/example/withbody/{id}:
@@ -2188,8 +2270,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2/{value}:check:
@@ -2223,8 +2309,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
   /v2a/example/a_bit_of_everything/{abe.uuid}:
@@ -2261,8 +2351,12 @@ paths:
           description: "I'm a teapot."
           schema:
             $ref: "#/definitions/examplepbNumericEnum"
+        500:
+          description: "Server error"
+          schema:
+            $ref: "#/definitions/examplepbErrorResponse"
         default:
-          description: "An unexpected error response"
+          description: "An unexpected error response."
           schema:
             $ref: "#/definitions/runtimeError"
 securityDefinitions:
@@ -2357,7 +2451,6 @@ definitions:
         format: "int64"
       bool_value:
         type: "boolean"
-        format: "boolean"
       string_value:
         type: "string"
       bytes_value:
@@ -2496,7 +2589,6 @@ definitions:
         type: "array"
         items:
           type: "boolean"
-          format: "boolean"
       path_repeated_string_value:
         type: "array"
         items:
@@ -2574,6 +2666,31 @@ definitions:
       create_time: "2000-01-23T04:56:07.000+00:00"
       name: "name"
       id: "id"
+  examplepbErrorObject:
+    type: "object"
+    properties:
+      code:
+        type: "integer"
+        format: "integer"
+        description: "Response code"
+        title: "code"
+      message:
+        type: "string"
+        description: "Response message"
+        title: "message"
+        pattern: "^[a-zA-Z0-9]{1, 32}$"
+  examplepbErrorResponse:
+    type: "object"
+    properties:
+      correlationId:
+        type: "string"
+        format: "uuid"
+        example: "2438ac3c-37eb-4902-adef-ed16b4431030"
+        description: "Unique event identifier for server requests"
+        title: "x-correlation-id"
+        pattern: "^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$"
+      error:
+        $ref: "#/definitions/examplepbErrorObject"
   examplepbNumericEnum:
     type: "string"
     description: "NumericEnum is one or zero.\n\n - ZERO: ZERO means 0\n - ONE: ONE\

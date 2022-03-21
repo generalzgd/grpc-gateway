@@ -160,6 +160,27 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 			}
 		}
 	}
+	responses: {
+		key: "500";
+		value: {
+			description: "Server error";
+			headers: {
+				key: "X-Correlation-Id"
+				value: {
+					description: "Unique event identifier for server requests"
+					type: "string"
+					format: "uuid"
+					default: "\"2438ac3c-37eb-4902-adef-ed16b4431030\""
+					pattern: "^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$"
+				}
+			};
+			schema: {
+				json_schema: {
+					ref: ".grpc.gateway.examples.internal.examplepb.ErrorResponse";
+				}
+			}
+		}
+	}
 	extensions: {
 		key: "x-grpc-gateway-foo";
 		value {
@@ -181,6 +202,31 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
 	}
 };
 
+message ErrorResponse{
+	string correlationId = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {
+		pattern: "^[0-9A-F]{8}-[0-9A-F]{4}-4[0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}$",
+		title: "x-correlation-id",
+		description: "Unique event identifier for server requests",
+		format: "uuid",
+		example: "\"2438ac3c-37eb-4902-adef-ed16b4431030\""
+	}];
+	ErrorObject error = 2;
+}
+
+message ErrorObject{
+	int32 code = 1 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {
+		pattern: "^[0-9]$",
+		title: "code",
+		description: "Response code",
+		format: "integer"
+	}];
+	string message = 2 [(grpc.gateway.protoc_gen_swagger.options.openapiv2_field) = {
+		pattern: "^[a-zA-Z0-9]{1, 32}$",
+		title: "message",
+		description: "Response message"
+	}];
+}
+
 
 // Intentionally complicated message type to cover many features of Protobuf.
 message ABitOfEverything {
@@ -194,13 +240,13 @@ message ABitOfEverything {
 			url: "https://github.com/grpc-ecosystem/grpc-gateway";
 			description: "Find out more about ABitOfEverything";
 		}
-		example: { value: '{ "uuid": "0cf361e1-4b44-483d-a159-54dabdf7e814" }' }
+		example_string: "{\"uuid\": \"0cf361e1-4b44-483d-a159-54dabdf7e814\"}"
 	};
 
 	// Nested is nested type.
 	message Nested {
 		option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
-			example: { value: '{ "ok": "TRUE" }' }
+			example_string: "{\"ok\": \"TRUE\"}"
 		};
 		// name is nested field.
 		string name = 1;
@@ -276,7 +322,7 @@ message ABitOfEverything {
 // ABitOfEverythingRepeated is used to validate repeated path parameter functionality
 message ABitOfEverythingRepeated {
 	option (grpc.gateway.protoc_gen_swagger.options.openapiv2_schema) = {
-		example: { value: '{ "path_repeated_bool_value": [true, true, false, true], "path_repeated_int32_value": [1, 2, 3] }' }
+		example_string: "{\"path_repeated_bool_value\": [true, true, false, true], \"path_repeated_int32_value\": [1, 2, 3]}"
 	};
 
 	// repeated values. they are comma-separated in path

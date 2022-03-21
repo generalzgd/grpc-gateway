@@ -12,6 +12,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"reflect"
 
 	"github.com/golang/protobuf/descriptor"
 	"github.com/golang/protobuf/proto"
@@ -20,6 +21,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -27,9 +29,11 @@ import (
 var _ codes.Code
 var _ io.Reader
 var _ status.Status
+var _ reflect.Kind
 var _ = runtime.String
 var _ = utilities.NewDoubleArray
 var _ = descriptor.ForMessage
+var _ = metadata.Join
 
 var (
 	filter_NonStandardService_Update_0 = &utilities.DoubleArray{Encoding: map[string]int{"body": 0}, Base: []int{1, 1, 0}, Check: []int{0, 1, 2}}
@@ -51,7 +55,9 @@ func request_NonStandardService_Update_0(ctx context.Context, marshaler runtime.
 		if fieldMask, err := runtime.FieldMaskFromRequestBody(newReader(), md); err != nil {
 			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 		} else {
-			protoReq.UpdateMask = fieldMask
+			rv := reflect.ValueOf(&protoReq.UpdateMask).Elem()
+			rv.Set(reflect.New(rv.Type().Elem()))
+			protoReq.UpdateMask.Paths = fieldMask.Paths
 		}
 	}
 
@@ -83,7 +89,9 @@ func local_request_NonStandardService_Update_0(ctx context.Context, marshaler ru
 		if fieldMask, err := runtime.FieldMaskFromRequestBody(newReader(), md); err != nil {
 			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 		} else {
-			protoReq.UpdateMask = fieldMask
+			rv := reflect.ValueOf(&protoReq.UpdateMask).Elem()
+			rv.Set(reflect.New(rv.Type().Elem()))
+			protoReq.UpdateMask.Paths = fieldMask.Paths
 		}
 	}
 
@@ -119,7 +127,9 @@ func request_NonStandardService_UpdateWithJSONNames_0(ctx context.Context, marsh
 		if fieldMask, err := runtime.FieldMaskFromRequestBody(newReader(), md); err != nil {
 			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 		} else {
-			protoReq.UpdateMask = fieldMask
+			rv := reflect.ValueOf(&protoReq.UpdateMask).Elem()
+			rv.Set(reflect.New(rv.Type().Elem()))
+			protoReq.UpdateMask.Paths = fieldMask.Paths
 		}
 	}
 
@@ -151,7 +161,9 @@ func local_request_NonStandardService_UpdateWithJSONNames_0(ctx context.Context,
 		if fieldMask, err := runtime.FieldMaskFromRequestBody(newReader(), md); err != nil {
 			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 		} else {
-			protoReq.UpdateMask = fieldMask
+			rv := reflect.ValueOf(&protoReq.UpdateMask).Elem()
+			rv.Set(reflect.New(rv.Type().Elem()))
+			protoReq.UpdateMask.Paths = fieldMask.Paths
 		}
 	}
 
@@ -170,12 +182,14 @@ func local_request_NonStandardService_UpdateWithJSONNames_0(ctx context.Context,
 // RegisterNonStandardServiceHandlerServer registers the http handlers for service NonStandardService to "mux".
 // UnaryRPC     :call NonStandardServiceServer directly.
 // StreamingRPC :currently unsupported pending https://github.com/grpc/grpc-go/issues/906.
-// Note that using this registration option will cause many gRPC library features (such as grpc.SendHeader, etc) to stop working. Consider using RegisterNonStandardServiceHandlerFromEndpoint instead.
+// Note that using this registration option will cause many gRPC library features to stop working. Consider using RegisterNonStandardServiceHandlerFromEndpoint instead.
 func RegisterNonStandardServiceHandlerServer(ctx context.Context, mux *runtime.ServeMux, server NonStandardServiceServer) error {
 
 	mux.Handle("PATCH", pattern_NonStandardService_Update_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
 		if err != nil {
@@ -183,6 +197,7 @@ func RegisterNonStandardServiceHandlerServer(ctx context.Context, mux *runtime.S
 			return
 		}
 		resp, md, err := local_request_NonStandardService_Update_0(rctx, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
@@ -196,6 +211,8 @@ func RegisterNonStandardServiceHandlerServer(ctx context.Context, mux *runtime.S
 	mux.Handle("PATCH", pattern_NonStandardService_UpdateWithJSONNames_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
+		var stream runtime.ServerTransportStream
+		ctx = grpc.NewContextWithServerTransportStream(ctx, &stream)
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateIncomingContext(ctx, mux, req)
 		if err != nil {
@@ -203,6 +220,7 @@ func RegisterNonStandardServiceHandlerServer(ctx context.Context, mux *runtime.S
 			return
 		}
 		resp, md, err := local_request_NonStandardService_UpdateWithJSONNames_0(rctx, inboundMarshaler, server, req, pathParams)
+		md.HeaderMD, md.TrailerMD = metadata.Join(md.HeaderMD, stream.Header()), metadata.Join(md.TrailerMD, stream.Trailer())
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)

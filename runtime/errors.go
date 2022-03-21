@@ -54,7 +54,7 @@ func HTTPStatusFromCode(code codes.Code) int {
 		return http.StatusInternalServerError
 	}
 
-	// 其他业务错误码
+	grpclog.Infof("Unknown gRPC error code: %v", code)
 	return http.StatusOK
 }
 
