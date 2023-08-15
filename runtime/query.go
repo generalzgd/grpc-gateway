@@ -3,6 +3,8 @@ package runtime
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
+	"mime/multipart"
 	"net/url"
 	"reflect"
 	"regexp"
@@ -23,12 +25,22 @@ var currentQueryParser QueryParameterParser = &defaultQueryParser{}
 // QueryParameterParser defines interface for all query parameter parsers
 type QueryParameterParser interface {
 	Parse(msg proto.Message, values url.Values, filter *utilities.DoubleArray) error
+	ParseMultipart(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error
+}
+
+type MultiParameterParser interface {
+	ParseMultipart(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error
 }
 
 // PopulateQueryParameters parses query parameters
 // into "msg" using current query parser
 func PopulateQueryParameters(msg proto.Message, values url.Values, filter *utilities.DoubleArray) error {
 	return currentQueryParser.Parse(msg, values, filter)
+}
+
+// PopulateMultipartParameters parses multipart fileHeader
+func PopulateMultipartParameters(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error {
+	return currentQueryParser.ParseMultipart(msg, values, filter)
 }
 
 type defaultQueryParser struct{}
@@ -40,7 +52,7 @@ func (*defaultQueryParser) Parse(msg proto.Message, values url.Values, filter *u
 		match := valuesKeyRegexp.FindStringSubmatch(key)
 		if len(match) == 3 {
 			key = match[1]
-			if len(match[2])>0{
+			if len(match[2]) > 0 {
 				values = append([]string{match[2]}, values...)
 			}
 		}
@@ -53,6 +65,83 @@ func (*defaultQueryParser) Parse(msg proto.Message, values url.Values, filter *u
 		}
 	}
 	return nil
+}
+
+// ParseMultipart populates "values" into "msg".
+// A value is ignored if its key starts with one of the elements in "filter".
+func (*defaultQueryParser) ParseMultipart(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error {
+	for key, values := range values {
+		//match := valuesKeyRegexp.FindStringSubmatch(key)
+		//if len(match) == 3 {
+		//	key = match[1]
+		//	if len(match[2]) > 0 {
+		//		values = append([]*multipart.FileHeader{match[2]}, values...)
+		//	}
+		//}
+		fieldPath := strings.Split(key, ".")
+		if filter.HasCommonPrefix(fieldPath) {
+			continue
+		}
+
+		if err := populateMultiValueFromPath(msg, fieldPath, values); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func populateMultiValueFromPath(msg proto.Message, fieldPath []string, values []*multipart.FileHeader) error {
+	switch len(values) {
+	case 0:
+		return fmt.Errorf("no value of field: %s", strings.Join(fieldPath, "."))
+	case 1:
+	default:
+		grpclog.Infof("too many field values: %s", strings.Join(fieldPath, "."))
+	}
+
+	m := reflect.ValueOf(msg)
+	if m.Kind() != reflect.Ptr {
+		return fmt.Errorf("unexpected type %T: %v", msg, msg)
+	}
+	//var props *proto.Properties
+	m = m.Elem()
+	for i, fieldName := range fieldPath {
+		isLast := i == len(fieldPath)-1
+		if !isLast && m.Kind() != reflect.Struct {
+			return fmt.Errorf("non-aggregate type in the mid of path: %s", strings.Join(fieldPath, "."))
+		}
+		var f reflect.Value
+		var err error
+		f, _, err = fieldByProtoName(m, fieldName)
+		if err != nil {
+			return err
+		} else if !f.IsValid() {
+			grpclog.Infof("field not found in %T: %s", msg, strings.Join(fieldPath, "."))
+			return nil
+		}
+
+		switch f.Kind() {
+		case reflect.Slice:
+			if !isLast {
+				return fmt.Errorf("unexpected repeated field in %s", strings.Join(fieldPath, "."))
+			}
+			return populateRepeatedMultiField(f, values)
+		case reflect.Ptr:
+			if f.IsNil() {
+				m = reflect.New(f.Type().Elem())
+				f.Set(m.Convert(f.Type()))
+			}
+			m = f.Elem()
+			continue
+		case reflect.Struct:
+			m = f
+			continue
+		default:
+			return fmt.Errorf("unexpected type %s in %T", f.Type(), msg)
+		}
+	}
+
+	return populateMultiField(m, values[0])
 }
 
 // PopulateFieldFromPath sets a value in a nested Protobuf structure.
@@ -213,6 +302,79 @@ func populateRepeatedField(f reflect.Value, values []string, props *proto.Proper
 		}
 		f.Index(i).Set(result[0].Convert(f.Index(i).Type()))
 	}
+	return nil
+}
+
+func populateRepeatedMultiField(f reflect.Value, values []*multipart.FileHeader) error {
+	ele := f.Type().Elem()
+	if ele.Kind() == reflect.Ptr {
+		ele = ele.Elem()
+	}
+	typeName := ele.String()
+	if typeName != "upfile.File" {
+		return fmt.Errorf("unexpected type %T for multipart", typeName)
+	}
+	slice := reflect.MakeSlice(f.Type(), len(values), len(values)).Convert(f.Type())
+	for i, value := range values {
+		valEle := reflect.New(ele)
+		slice.Index(i).Set(valEle)
+		populateMultiField(slice.Index(i), value)
+	}
+	f.Set(slice)
+	return nil
+}
+
+func populateMultiField(f reflect.Value, value *multipart.FileHeader) error {
+	if f.Kind() == reflect.Ptr {
+		f = f.Elem()
+	}
+	typeName := f.Type().String()
+	if typeName != "upfile.File" {
+		return fmt.Errorf("unexpected type %s for multipart", typeName)
+	}
+
+	getBytes := func(value *multipart.FileHeader) (bytes []byte, err error) {
+		fileVal, err := value.Open()
+		if err != nil {
+			return nil, fmt.Errorf("bad FileHeader: %s", value.Filename)
+		}
+		defer fileVal.Close()
+		bytesVal, err := io.ReadAll(fileVal)
+		if err != nil {
+			return nil, fmt.Errorf("bad BytesValue: %s", value.Filename)
+		}
+		return bytesVal, nil
+	}
+
+	names := []string{"FileName", "FileSize", "FileBytes", "MIMEHeader"}
+
+	for _, fieldName := range names {
+		field := f.FieldByName(fieldName)
+
+		if !field.CanSet() {
+			continue
+		}
+
+		switch fieldName {
+		case "FileName":
+			field.SetString(value.Filename)
+		case "FileSize":
+			field.SetInt(value.Size)
+		case "FileBytes":
+			if bytesVal, err := getBytes(value); err == nil {
+				field.SetBytes(bytesVal)
+			} else {
+				return err
+			}
+		case "MIMEHeader":
+			tmp := make(map[string]string, len(value.Header))
+			for k := range value.Header {
+				tmp[k] = value.Header.Get(k)
+			}
+			field.Set(reflect.ValueOf(tmp))
+		}
+	}
+
 	return nil
 }
 
