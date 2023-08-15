@@ -25,6 +25,17 @@ var currentQueryParser QueryParameterParser = &defaultQueryParser{}
 // QueryParameterParser defines interface for all query parameter parsers
 type QueryParameterParser interface {
 	Parse(msg proto.Message, values url.Values, filter *utilities.DoubleArray) error
+	// ParseMultipart 文件信息定义入下所示
+	// message File {
+	//	// 文件名
+	//	string file_name = 1;
+	//	// 头
+	//	map<string, string> mime_header = 2;
+	//	// 文件大小
+	//	int64 file_size = 3;
+	//	// 文件内容
+	//	bytes file_bytes = 4;
+	//}
 	ParseMultipart(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error
 }
 
@@ -346,10 +357,17 @@ func populateMultiField(f reflect.Value, value *multipart.FileHeader) error {
 		return bytesVal, nil
 	}
 
-	names := []string{"FileName", "FileSize", "FileBytes", "MIMEHeader"}
+	//names := []string{"FileName", "FileSize", "FileBytes", "MIMEHeader"}
 
-	for _, fieldName := range names {
-		field := f.FieldByName(fieldName)
+	for i := 0; i < f.NumField(); i++ {
+		field := f.Field(i)
+		fieldType := f.Type().Field(i)
+		fieldName := fieldType.Name
+
+		if strings.HasPrefix(fieldName, "XXX_") {
+			continue
+		}
+		//field := f.FieldByName(fieldName)
 
 		if !field.CanSet() {
 			continue
@@ -366,7 +384,7 @@ func populateMultiField(f reflect.Value, value *multipart.FileHeader) error {
 			} else {
 				return err
 			}
-		case "MIMEHeader":
+		case "MimeHeader":
 			tmp := make(map[string]string, len(value.Header))
 			for k := range value.Header {
 				tmp[k] = value.Header.Get(k)
