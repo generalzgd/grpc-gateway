@@ -81,20 +81,18 @@ func (*defaultQueryParser) Parse(msg proto.Message, values url.Values, filter *u
 // ParseMultipart populates "values" into "msg".
 // A value is ignored if its key starts with one of the elements in "filter".
 func (*defaultQueryParser) ParseMultipart(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error {
-	for key, values := range values {
-		//match := valuesKeyRegexp.FindStringSubmatch(key)
-		//if len(match) == 3 {
-		//	key = match[1]
-		//	if len(match[2]) > 0 {
-		//		values = append([]*multipart.FileHeader{match[2]}, values...)
-		//	}
-		//}
+	for key, valueSlice := range values {
+		match := valuesKeyRegexp.FindStringSubmatch(key)
+		//fmt.Println(match)
+		if len(match) == 3 {
+			key = match[1]
+		}
 		fieldPath := strings.Split(key, ".")
 		if filter.HasCommonPrefix(fieldPath) {
 			continue
 		}
 
-		if err := populateMultiValueFromPath(msg, fieldPath, values); err != nil {
+		if err := populateMultiValueFromPath(msg, fieldPath, valueSlice); err != nil {
 			return err
 		}
 	}
@@ -385,11 +383,13 @@ func populateMultiField(f reflect.Value, value *multipart.FileHeader) error {
 				return err
 			}
 		case "MimeHeader":
-			tmp := make(map[string]string, len(value.Header))
+			tmp := reflect.MakeMap(field.Type())
+			//tmp := make(map[string]string, len(value.Header))
 			for k := range value.Header {
-				tmp[k] = value.Header.Get(k)
+				//tmp[k] = value.Header.Get(k)
+				tmp.SetMapIndex(reflect.ValueOf(k), reflect.ValueOf(value.Header.Get(k)))
 			}
-			field.Set(reflect.ValueOf(tmp))
+			field.Set(tmp)
 		}
 	}
 
