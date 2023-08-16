@@ -55,15 +55,11 @@ func PopulateMultipartParameters(msg proto.Message, values map[string][]*multipa
 	return currentQueryParser.ParseMultipart(msg, values, filter)
 }
 
-func CheckMultipartParameters(values map[string][]*multipart.FileHeader, wantExt []string) error {
-	wantMap := make(map[string]struct{}, len(wantExt))
-	for _, ext := range wantExt {
-		wantMap[ext] = struct{}{}
-	}
+func CheckMultipartParameters(values map[string][]*multipart.FileHeader, wantExt map[string]struct{}) error {
 	for _, list := range values {
 		for _, part := range list {
 			ext := strings.ToLower(filepath.Ext(part.Filename))[1:]
-			if _, ok := wantMap[ext]; !ok {
+			if _, ok := wantExt[ext]; !ok {
 				return fmt.Errorf("unexcept input file ext: %s", ext)
 			}
 		}
