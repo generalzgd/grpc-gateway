@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/url"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -52,6 +53,22 @@ func PopulateQueryParameters(msg proto.Message, values url.Values, filter *utili
 // PopulateMultipartParameters parses multipart fileHeader
 func PopulateMultipartParameters(msg proto.Message, values map[string][]*multipart.FileHeader, filter *utilities.DoubleArray) error {
 	return currentQueryParser.ParseMultipart(msg, values, filter)
+}
+
+func CheckMultipartParameters(values map[string][]*multipart.FileHeader, wantExt []string) error {
+	wantMap := make(map[string]struct{}, len(wantExt))
+	for _, ext := range wantExt {
+		wantMap[ext] = struct{}{}
+	}
+	for _, list := range values {
+		for _, part := range list {
+			ext := strings.ToLower(filepath.Ext(part.Filename))[1:]
+			if _, ok := wantMap[ext]; !ok {
+				return fmt.Errorf("unexcept input file ext: %s", ext)
+			}
+		}
+	}
+	return nil
 }
 
 type defaultQueryParser struct{}
