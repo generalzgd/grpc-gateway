@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/textproto"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/proto"
 	"github.com/grpc-ecosystem/grpc-gateway/internal"
 	"google.golang.org/grpc/grpclog"
@@ -17,6 +18,83 @@ var errEmptyResponse = errors.New("empty response")
 
 // ForwardResponseStream forwards the stream from gRPC server to REST client.
 func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, req *http.Request, recv func() (proto.Message, error), opts ...func(context.Context, http.ResponseWriter, proto.Message) error) {
+	f, ok := w.(http.Flusher)
+	if !ok {
+		grpclog.Infof("Flush not supported in %T", w)
+		http.Error(w, "unexpected type of web server", http.StatusInternalServerError)
+		return
+	}
+
+	md, ok := ServerMetadataFromContext(ctx)
+	if !ok {
+		grpclog.Infof("Failed to extract ServerMetadata from context")
+		http.Error(w, "unexpected error", http.StatusInternalServerError)
+		return
+	}
+	handleForwardResponseServerMetadata(w, mux, md)
+
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("Content-Type", marshaler.ContentType())
+	if err := handleForwardResponseOptions(ctx, w, nil, opts); err != nil {
+		HTTPError(ctx, mux, marshaler, w, req, err)
+		return
+	}
+
+	var delimiter []byte
+	if d, ok := marshaler.(Delimited); ok {
+		delimiter = d.Delimiter()
+	} else {
+		delimiter = []byte("\n")
+	}
+
+	var wroteHeader bool
+	for {
+		resp, err := recv()
+		if err == io.EOF {
+			return
+		}
+		if err != nil {
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			return
+		}
+		if err := handleForwardResponseOptions(ctx, w, resp, opts); err != nil {
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			return
+		}
+
+		var buf []byte
+		switch {
+		case resp == nil:
+			buf, err = marshaler.Marshal(errorChunk(streamError(ctx, mux.streamErrorHandler, errEmptyResponse)))
+		default:
+			result := map[string]interface{}{"result": resp}
+			if rb, ok := resp.(responseBody); ok {
+				result["result"] = rb.XXX_ResponseBody()
+			}
+
+			buf, err = marshaler.Marshal(result)
+		}
+
+		if err != nil {
+			grpclog.Infof("Failed to marshal response chunk: %v", err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			return
+		}
+		if _, err = w.Write(buf); err != nil {
+			grpclog.Infof("Failed to send response chunk: %v", err)
+			return
+		}
+		wroteHeader = true
+		if _, err = w.Write(delimiter); err != nil {
+			grpclog.Infof("Failed to send delimiter chunk: %v", err)
+			return
+		}
+		f.Flush()
+	}
+}
+
+// ForwardResponseStreamGoGo forwards the stream from gRPC server to REST client.
+func ForwardResponseStreamGoGo(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, req *http.Request, recv func() (gogoproto.Message, error), opts ...func(context.Context, http.ResponseWriter, proto.Message) error) {
 	f, ok := w.(http.Flusher)
 	if !ok {
 		grpclog.Infof("Flush not supported in %T", w)
@@ -152,14 +230,14 @@ func ForwardResponseMessage(ctx context.Context, mux *ServeMux, marshaler Marsha
 	if rb, ok := resp.(responseBody); ok {
 		tmp := rb.XXX_ResponseBody()
 		if mux.respContainMuter != nil {
-			tmp = mux.respContainMuter(marshaler,tmp)
+			tmp = mux.respContainMuter(marshaler, tmp)
 		}
 		buf, err = marshaler.Marshal(tmp)
 	} else {
 		var tmp interface{}
 		tmp = resp
 		if mux.respContainMuter != nil {
-			tmp = mux.respContainMuter(marshaler,tmp)
+			tmp = mux.respContainMuter(marshaler, tmp)
 		}
 		buf, err = marshaler.Marshal(tmp)
 	}
