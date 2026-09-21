@@ -1,12 +1,14 @@
 package runtime
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/textproto"
+	"strings"
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/golang/protobuf/proto"
@@ -15,6 +17,108 @@ import (
 )
 
 var errEmptyResponse = errors.New("empty response")
+
+// defaultDelimiter 是非 SSE 流式响应的默认帧分隔符。
+var defaultDelimiter = []byte("\n")
+
+// sseContentType 是流式响应统一使用的 Content-Type，标识这是标准 SSE 帧。
+const sseContentType = "text/event-stream; charset=utf-8"
+
+// 后端通过响应头 metadata 声明“服务端流式”的标识：
+//	gRPC 服务端：header := metadata.Pairs("X-Stream-Type", "server-streaming"); stream.SendHeader(header)
+// 只有携带该标识的响应才输出标准 SSE 帧，其余保持 grpc-gateway 原有行为。
+const (
+	xStreamTypeKey   = "X-Stream-Type"
+	xStreamTypeValue = "server-streaming"
+)
+
+// streamFrame 封装一次流式转发的帧格式：是否走标准 SSE，以及非 SSE 时的分隔符。
+// SSE 模式由后端通过响应头 metadata 显式声明（见 newStreamFrame）。
+type streamFrame struct {
+	sse       bool
+	delimiter []byte
+}
+
+// newStreamFrame 根据响应头决定帧格式：只要存在 “流式” 标识
+// （X-Stream-Type: server-streaming，键名不区分大小写），就使用标准 SSE 帧
+// （data: {json}\n\n，Content-Type: text/event-stream）；
+// 否则保持 grpc-gateway 原有行为（裸 JSON + 换行符分隔）。
+func newStreamFrame(ctx context.Context, w http.ResponseWriter, marshaler Marshaler) streamFrame {
+	if isServerStreaming(ctx, w) {
+		return streamFrame{sse: true}
+	}
+	delimiter := defaultDelimiter
+	if d, ok := marshaler.(Delimited); ok {
+		delimiter = d.Delimiter()
+	}
+	return streamFrame{delimiter: delimiter}
+}
+
+// isServerStreaming 判断后端是否声明了服务端流式。
+// 同时检查两处来源：gRPC 响应头 metadata（HeaderMD）与已写出的 HTTP 响应头，
+// 二者任一命中即可（网关的 OutgoingHeaderMatcher 可能已改写键名）。
+func isServerStreaming(ctx context.Context, w http.ResponseWriter) bool {
+	if md, ok := ServerMetadataFromContext(ctx); ok {
+		for _, v := range md.HeaderMD.Get(xStreamTypeKey) {
+			if strings.EqualFold(v, xStreamTypeValue) {
+				return true
+			}
+		}
+	}
+	if w != nil {
+		if strings.EqualFold(w.Header().Get(xStreamTypeKey), xStreamTypeValue) {
+			return true
+		}
+	}
+	return false
+}
+
+// writeFrame 按帧格式写出一条流式消息。SSE 下写成 `data: <payload>\n\n`；
+// 否则写出 payload 本身并追加分隔符。
+func writeFrame(w http.ResponseWriter, payload []byte, frame streamFrame) error {
+	if frame.sse {
+		return writeSSEChunk(w, payload)
+	}
+	if _, err := w.Write(payload); err != nil {
+		return err
+	}
+	_, err := w.Write(frame.delimiter)
+	return err
+}
+
+// writeSSEChunk 把一个已序列化的数据块写成一条标准 SSE 消息：`data: <payload>\n\n`。
+// payload 内部若含换行，会按 SSE 规范拆成多行 data:。
+func writeSSEChunk(w http.ResponseWriter, payload []byte) error {
+	for _, ln := range bytes.Split(payload, []byte("\n")) {
+		if _, err := w.Write([]byte("data: ")); err != nil {
+			return err
+		}
+		if _, err := w.Write(ln); err != nil {
+			return err
+		}
+		if _, err := w.Write([]byte("\n")); err != nil {
+			return err
+		}
+	}
+	// 空行结束一条 SSE 消息
+	_, err := w.Write([]byte("\n"))
+	return err
+}
+
+// setStreamResponseHeader 按帧格式设置响应头。SSE 模式设置标准 SSE 头；
+// 非 SSE 保持原有 chunked + marshaler Content-Type。
+func setStreamResponseHeader(w http.ResponseWriter, marshaler Marshaler, frame streamFrame) {
+	if frame.sse {
+		w.Header().Set("Content-Type", sseContentType)
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		// 禁用 Nginx 等反向代理的缓冲，确保数据实时到达客户端
+		w.Header().Set("X-Accel-Buffering", "no")
+		return
+	}
+	w.Header().Set("Transfer-Encoding", "chunked")
+	w.Header().Set("Content-Type", marshaler.ContentType())
+}
 
 // ForwardResponseStream forwards the stream from gRPC server to REST client.
 func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshaler, w http.ResponseWriter, req *http.Request, recv func() (proto.Message, error), opts ...func(context.Context, http.ResponseWriter, proto.Message) error) {
@@ -33,18 +137,11 @@ func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshal
 	}
 	handleForwardResponseServerMetadata(w, mux, md)
 
-	w.Header().Set("Transfer-Encoding", "chunked")
-	w.Header().Set("Content-Type", marshaler.ContentType())
+	frame := newStreamFrame(ctx, w, marshaler)
+	setStreamResponseHeader(w, marshaler, frame)
 	if err := handleForwardResponseOptions(ctx, w, nil, opts); err != nil {
 		HTTPError(ctx, mux, marshaler, w, req, err)
 		return
-	}
-
-	var delimiter []byte
-	if d, ok := marshaler.(Delimited); ok {
-		delimiter = d.Delimiter()
-	} else {
-		delimiter = []byte("\n")
 	}
 
 	var wroteHeader bool
@@ -54,11 +151,11 @@ func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshal
 			return
 		}
 		if err != nil {
-			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err, frame)
 			return
 		}
 		if err := handleForwardResponseOptions(ctx, w, resp, opts); err != nil {
-			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err, frame)
 			return
 		}
 
@@ -77,18 +174,14 @@ func ForwardResponseStream(ctx context.Context, mux *ServeMux, marshaler Marshal
 
 		if err != nil {
 			grpclog.Infof("Failed to marshal response chunk: %v", err)
-			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err, frame)
 			return
 		}
-		if _, err = w.Write(buf); err != nil {
+		if err = writeFrame(w, buf, frame); err != nil {
 			grpclog.Infof("Failed to send response chunk: %v", err)
 			return
 		}
 		wroteHeader = true
-		if _, err = w.Write(delimiter); err != nil {
-			grpclog.Infof("Failed to send delimiter chunk: %v", err)
-			return
-		}
 		f.Flush()
 	}
 }
@@ -110,18 +203,11 @@ func ForwardResponseStreamGoGo(ctx context.Context, mux *ServeMux, marshaler Mar
 	}
 	handleForwardResponseServerMetadata(w, mux, md)
 
-	w.Header().Set("Transfer-Encoding", "chunked")
-	w.Header().Set("Content-Type", marshaler.ContentType())
+	frame := newStreamFrame(ctx, w, marshaler)
+	setStreamResponseHeader(w, marshaler, frame)
 	if err := handleForwardResponseOptions(ctx, w, nil, opts); err != nil {
 		HTTPError(ctx, mux, marshaler, w, req, err)
 		return
-	}
-
-	var delimiter []byte
-	if d, ok := marshaler.(Delimited); ok {
-		delimiter = d.Delimiter()
-	} else {
-		delimiter = []byte("\n")
 	}
 
 	var wroteHeader bool
@@ -131,11 +217,11 @@ func ForwardResponseStreamGoGo(ctx context.Context, mux *ServeMux, marshaler Mar
 			return
 		}
 		if err != nil {
-			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err, frame)
 			return
 		}
 		if err := handleForwardResponseOptions(ctx, w, resp, opts); err != nil {
-			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err, frame)
 			return
 		}
 
@@ -154,18 +240,14 @@ func ForwardResponseStreamGoGo(ctx context.Context, mux *ServeMux, marshaler Mar
 
 		if err != nil {
 			grpclog.Infof("Failed to marshal response chunk: %v", err)
-			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err)
+			handleForwardResponseStreamError(ctx, wroteHeader, marshaler, w, req, mux, err, frame)
 			return
 		}
-		if _, err = w.Write(buf); err != nil {
+		if err = writeFrame(w, buf, frame); err != nil {
 			grpclog.Infof("Failed to send response chunk: %v", err)
 			return
 		}
 		wroteHeader = true
-		if _, err = w.Write(delimiter); err != nil {
-			grpclog.Infof("Failed to send delimiter chunk: %v", err)
-			return
-		}
 		f.Flush()
 	}
 }
@@ -267,7 +349,7 @@ func handleForwardResponseOptions(ctx context.Context, w http.ResponseWriter, re
 	return nil
 }
 
-func handleForwardResponseStreamError(ctx context.Context, wroteHeader bool, marshaler Marshaler, w http.ResponseWriter, req *http.Request, mux *ServeMux, err error) {
+func handleForwardResponseStreamError(ctx context.Context, wroteHeader bool, marshaler Marshaler, w http.ResponseWriter, req *http.Request, mux *ServeMux, err error, frame streamFrame) {
 	serr := streamError(ctx, mux.streamErrorHandler, err)
 	if !wroteHeader {
 		w.WriteHeader(int(serr.HttpCode))
@@ -277,7 +359,7 @@ func handleForwardResponseStreamError(ctx context.Context, wroteHeader bool, mar
 		grpclog.Infof("Failed to marshal an error: %v", merr)
 		return
 	}
-	if _, werr := w.Write(buf); werr != nil {
+	if werr := writeFrame(w, buf, frame); werr != nil {
 		grpclog.Infof("Failed to notify error to client: %v", werr)
 		return
 	}

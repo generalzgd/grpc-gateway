@@ -13,6 +13,7 @@ import (
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	pb "github.com/grpc-ecosystem/grpc-gateway/runtime/internal/examplepb"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -26,6 +27,16 @@ func (r fakeReponseBodyWrapper) XXX_ResponseBody() interface{} {
 	return resp.Id
 }
 
+// streamTestCtx 返回一个携带（或不携带）流式响应头的元数据上下文。
+// sse 为 true 时模拟后端通过 metadata.Pairs("X-Stream-Type", "server-streaming") 声明流式。
+func streamTestCtx(sse bool) context.Context {
+	md := runtime.ServerMetadata{}
+	if sse {
+		md.HeaderMD = metadata.Pairs("X-Stream-Type", "server-streaming")
+	}
+	return runtime.NewServerMetadataContext(context.Background(), md)
+}
+
 func TestForwardResponseStream(t *testing.T) {
 	type msg struct {
 		pb  proto.Message
@@ -34,6 +45,7 @@ func TestForwardResponseStream(t *testing.T) {
 	tests := []struct {
 		name         string
 		msgs         []msg
+		sse          bool
 		statusCode   int
 		responseBody bool
 	}{{
@@ -73,6 +85,49 @@ func TestForwardResponseStream(t *testing.T) {
 		},
 		responseBody: true,
 		statusCode:   http.StatusOK,
+	}, {
+		name: "sse encoding",
+		msgs: []msg{
+			{&pb.SimpleMessage{Id: "One"}, nil},
+			{&pb.SimpleMessage{Id: "Two"}, nil},
+		},
+		sse:        true,
+		statusCode: http.StatusOK,
+	}, {
+		name:       "sse empty",
+		sse:        true,
+		statusCode: http.StatusOK,
+	}, {
+		name:       "sse error",
+		msgs:       []msg{{nil, status.Errorf(codes.OutOfRange, "400")}},
+		sse:        true,
+		statusCode: http.StatusBadRequest,
+	}, {
+		name: "sse stream_error",
+		msgs: []msg{
+			{&pb.SimpleMessage{Id: "One"}, nil},
+			{nil, status.Errorf(codes.OutOfRange, "400")},
+		},
+		sse:        true,
+		statusCode: http.StatusOK,
+	}, {
+		name: "sse response body stream case",
+		msgs: []msg{
+			{fakeReponseBodyWrapper{&pb.SimpleMessage{Id: "One"}}, nil},
+			{fakeReponseBodyWrapper{&pb.SimpleMessage{Id: "Two"}}, nil},
+		},
+		sse:          true,
+		responseBody: true,
+		statusCode:   http.StatusOK,
+	}, {
+		name: "sse response body stream error case",
+		msgs: []msg{
+			{fakeReponseBodyWrapper{&pb.SimpleMessage{Id: "One"}}, nil},
+			{nil, status.Errorf(codes.OutOfRange, "400")},
+		},
+		sse:          true,
+		responseBody: true,
+		statusCode:   http.StatusOK,
 	}}
 
 	newTestRecv := func(t *testing.T, msgs []msg) func() (proto.Message, error) {
@@ -88,7 +143,6 @@ func TestForwardResponseStream(t *testing.T) {
 			return msg.pb, msg.err
 		}
 	}
-	ctx := runtime.NewServerMetadataContext(context.Background(), runtime.ServerMetadata{})
 	marshaler := &runtime.JSONPb{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -96,14 +150,23 @@ func TestForwardResponseStream(t *testing.T) {
 			req := httptest.NewRequest("GET", "http://example.com/foo", nil)
 			resp := httptest.NewRecorder()
 
-			runtime.ForwardResponseStream(ctx, runtime.NewServeMux(), marshaler, resp, req, recv)
+			runtime.ForwardResponseStream(streamTestCtx(tt.sse), runtime.NewServeMux(), marshaler, resp, req, recv)
 
 			w := resp.Result()
 			if w.StatusCode != tt.statusCode {
 				t.Errorf("StatusCode %d want %d", w.StatusCode, tt.statusCode)
 			}
-			if h := w.Header.Get("Transfer-Encoding"); h != "chunked" {
-				t.Errorf("ForwardResponseStream missing header chunked")
+			if tt.sse {
+				if h := w.Header.Get("Content-Type"); h != "text/event-stream; charset=utf-8" {
+					t.Errorf("ForwardResponseStream unexpected Content-Type %q", h)
+				}
+			} else {
+				if h := w.Header.Get("Transfer-Encoding"); h != "chunked" {
+					t.Errorf("ForwardResponseStream missing header chunked")
+				}
+				if h := w.Header.Get("Content-Type"); h != marshaler.ContentType() {
+					t.Errorf("ForwardResponseStream unexpected Content-Type %q", h)
+				}
 			}
 			body, err := ioutil.ReadAll(w.Body)
 			if err != nil {
@@ -133,8 +196,9 @@ func TestForwardResponseStream(t *testing.T) {
 						t.Errorf("marshaler.Marshal() failed %v", err)
 					}
 					errBytes := body[len(want):]
-					if string(errBytes) != string(b) {
-						t.Errorf("ForwardResponseStream() = \"%s\" want \"%s\"", errBytes, b)
+					wantErr := frameBytes(b, marshaler, tt.sse)
+					if string(errBytes) != string(wantErr) {
+						t.Errorf("ForwardResponseStream() = \"%s\" want \"%s\"", errBytes, wantErr)
 					}
 
 					return
@@ -158,8 +222,7 @@ func TestForwardResponseStream(t *testing.T) {
 				if err != nil {
 					t.Errorf("marshaler.Marshal() failed %v", err)
 				}
-				want = append(want, b...)
-				want = append(want, marshaler.Delimiter()...)
+				want = append(want, frameBytes(b, marshaler, tt.sse)...)
 			}
 
 			if string(body) != string(want) {
@@ -167,6 +230,20 @@ func TestForwardResponseStream(t *testing.T) {
 			}
 		})
 	}
+}
+
+// frameBytes 按与实现一致的规则构造一帧的期望字节：
+// SSE 模式为 `data: <payload>\n\n`，否则为 payload + 分隔符。
+func frameBytes(payload []byte, marshaler runtime.Marshaler, sse bool) []byte {
+	if sse {
+		out := append([]byte("data: "), payload...)
+		return append(out, '\n', '\n')
+	}
+	delim := []byte("\n")
+	if d, ok := marshaler.(interface{ Delimiter() []byte }); ok {
+		delim = d.Delimiter()
+	}
+	return append(append([]byte{}, payload...), delim...)
 }
 
 // A custom marshaler implementation, that doesn't implement the delimited interface
